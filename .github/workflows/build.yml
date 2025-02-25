@@ -49,7 +49,7 @@ jobs:
           cd scripts
           npm install
           grunt concat:vpx
-          Move-Item -Path dest/vpx/tablescript.vbs -Destination ./${{ steps.gamename.outputs.game_name }}/script.vbs -Force
+          Move-Item -Path dest/vpx/tablescript.vbs -Destination ../${{ steps.gamename.outputs.game_name }}/script.vbs -Force
         shell: pwsh
 
       - name: Install jq (JSON Processor)
