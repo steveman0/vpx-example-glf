@@ -266,6 +266,8 @@ Sub Table1_OptionEvent(ByVal eventId)
     StagedFlippers = Table1.Option("Staged Flippers", 0, 1, 1, 0, 0, Array("Disabled", "Enabled"))
 
 	If eventId = 3 And dspTriggered Then dspTriggered = False : DisableStaticPreRendering = False : End If
+
+	Glf_Options(eventId)
 End Sub
 
 
@@ -279,7 +281,8 @@ Const BallSize = 50				 'Ball diameter in VPX units; must be 50
 Const BallMass = 1				  'Ball mass must be 1
 Const tnob = 5					  'Total number of balls the table can hold
 Const lob = 0					   'Locked balls
-Const cGameName = "example"		 'The unique alphanumeric name for this table
+Const cGameName = "VPXExampleGLF"		 'The unique alphanumeric name for this table
+Dim gBOT
 
 'Detect if VPX is rendering in VR and then make sure the VR Room Chioce is used
 Dim VRRoom
@@ -618,60 +621,9 @@ Sub LoadCoreFiles
 	On Error GoTo 0
 End Sub
 
-Dim ETBall1, ETBall2, ETBall3, ETBall4, ETBall5, gBOT
-
 Sub Table1_Init
-	Dim i
-	
-	'Ball initializations need for physical trough
-	Set ETBall1 = swTrough1.CreateSizedballWithMass(Ballsize / 2,Ballmass)
-	Set ETBall2 = swTrough2.CreateSizedballWithMass(Ballsize / 2,Ballmass)
-	Set ETBall3 = swTrough3.CreateSizedballWithMass(Ballsize / 2,Ballmass)
-	Set ETBall4 = swTrough4.CreateSizedballWithMass(Ballsize / 2,Ballmass)
-	Set ETBall5 = swTrough5.CreateSizedballWithMass(Ballsize / 2,Ballmass)
-	
-	'*** Use gBOT in the script wherever BOT is normally used. Then there is no need for GetBalls calls ***
-	gBOT = Array(ETBall1, ETBall2, ETBall3, ETBall4, ETBall5)
-
-	'Map all lamps to the corresponding ROM output using the value of TimerInterval of each light object
-	vpmMapLights AllLamps 		'Make a collection called "AllLamps" and put all the light objects in it.
-	
-	Dim xx
-	
-	' Turn on the GI lights
-	For Each xx In GI
-		xx.state = 1
-	Next
-	
-	' Make drop target shadows visible
-	For Each xx In ShadowDT
-		xx.visible = True
-	Next
-	
-	' Turn off the bumper lights
-	FlBumperFadeTarget(1) = 0
-	FlBumperFadeTarget(2) = 0
-	FlBumperFadeTarget(3) = 0
-	FlBumperFadeTarget(4) = 0
-	FlBumperFadeTarget(5) = 0
-	
-	' Gameplay variable inits
-	For i = 1 To 4
-		PlayerScore(i) = 0
-	Next
-	CurrentPlayer = 1
-	
-	' FlexDMD
-	Flex_Init
-	ShowScene flexScenes(1), FlexDMD_RenderMode_DMD_RGB, 2
-	
-	' All bumper inlanes are "off"
-	For i = 0 To 3
-		BonusX(i) = False
-	Next
-	
-	' Set the queueEmpty callback
-	queue.QueueEmpty = "QueueEmptyRoutine"
+	ConfigureGlfDevices()
+    Glf_Init()
 End Sub
 
 
@@ -683,6 +635,8 @@ Sub Table1_Exit
 		FlexDMD.Run = False
 		FlexDMD = Null
 	End If
+
+	Glf_Exit()
 End Sub
 
 
@@ -901,96 +855,21 @@ End Sub
 '*******************************************
 
 Sub Table1_KeyDown(ByVal keycode)
-	DebugShotTableKeyDownCheck keycode
-	
-	If keycode = 19 Then
-		ScoreCard = 1
-		CardTimer.enabled = True
-	End If
-	
-	If keycode = LeftFlipperKey Then
-		SolLFlipper True	'This would be called by the solenoid callbacks if using a ROM
-	End If
-	
-	If keycode = RightFlipperKey Then
-		SolRFlipper True	'This would be called by the solenoid callbacks if using a ROM
-	End If
-	
-	If keycode = PlungerKey Then
+	Glf_KeyDown(keycode)
+	If keycode = PlungerKey Then 
 		Plunger.Pullback
 		SoundPlungerPull
-		DMDBigText "LAUNCH",77,1
-		If FlexMode = 2 Then ShowScene flexScenes(0), FlexDMD_RenderMode_DMD_RGB, 1
 	End If
-	
-	If keycode = LeftTiltKey Then
-		Nudge 90, 1
-		SoundNudgeLeft
-	End If
-	If keycode = RightTiltKey Then
-		Nudge 270, 1
-		SoundNudgeRight
-	End If
-	If keycode = CenterTiltKey Then
-		Nudge 0, 1
-		SoundNudgeCenter
-	End If
-	If keycode = MechanicalTilt Then
-		SoundNudgeCenter() 'Send the Tilting command to the ROM (usually by pulsing a Switch), or run the tilting code for an orginal table
-	End If
-	
-	If keycode = StartGameKey Then
-		SoundStartButton
-		
-		'Add a ball for testing multiball
-		If BIPL = False Then
-			If BIP = 1 And Not queue.qItems.Exists("FlexMultiball") Then 'Multiball animation, but only if one ball in play and animation not already in the queue
-				queue.Add "flexMultiball", "ShowScene flexScenes(3), FlexDMD_RenderMode_DMD_RGB, 4", 10, 0, 0, 2000, 0, True 'Actual animation is 5 seconds, but move to release at 2 seconds when "MULTIBALL" begins flashing
-				queue.Add "flexMultiballSolRelease", "SolRelease True", 10, 0, 0, 3000, 0, False 'Add another 3-second post delay after release for the multiball animation to finish
-			Else
-				SolRelease True
-			End If
-		End If
-	End If
-	
-	'   If keycode = keyInsertCoin1 or keycode = keyInsertCoin2 or keycode = keyInsertCoin3 or keycode = keyInsertCoin4 Then 'Use this for ROM based games
-	If keycode = AddCreditKey Or keycode = AddCreditKey2 Then
-		Select Case Int(Rnd * 3)
-			Case 0
-				PlaySound ("Coin_In_1"), 0, CoinSoundLevel, 0, 0.25
-			Case 1
-				PlaySound ("Coin_In_2"), 0, CoinSoundLevel, 0, 0.25
-			Case 2
-				PlaySound ("Coin_In_3"), 0, CoinSoundLevel, 0, 0.25
-		End Select
-	End If
-	
 End Sub
-
-
 
 Sub Table1_KeyUp(ByVal keycode)
-	DebugShotTableKeyUpCheck keycode
-	
-	If keycode = 19 Then ScoreCard = 0
-	
 	If KeyCode = PlungerKey Then
 		Plunger.Fire
-		If BIPL = 1 Then
-			SoundPlungerReleaseBall()   'Plunger release sound when there is a ball in shooter lane
-		Else
-			SoundPlungerReleaseNoBall() 'Plunger release sound when there is no ball in shooter lane
-		End If
+		SoundPlungerReleaseBall
 	End If
-	
-	If keycode = LeftFlipperKey Then
-		SolLFlipper False   'This would be called by the solenoid callbacks if using a ROM
-	End If
-	
-	If keycode = RightFlipperKey Then
-		SolRFlipper False   'This would be called by the solenoid callbacks if using a ROM
-	End If
+	Glf_KeyUp(keycode)
 End Sub
+
 
 '*******************************************
 '	ZFLP: Flippers
@@ -1422,19 +1301,6 @@ Sub SolDTBank123(enabled)
 		For Each xx In ShadowDT
 			xx.visible = True
 		Next
-	End If
-End Sub
-
-'*******************************************
-'	ZSOL: Other Solenoids
-'*******************************************
-
-' Knocker (this sub mimics how you would handle kicker in ROM based tables)
-' For this to work, you must create a primitive on the table named KnockerPosition
-' SolCallback(XX) = "SolKnocker"  'In ROM based tables, change the solenoid number XX to the correct number for your table.
-Sub SolKnocker(Enabled) 'Knocker solenoid
-	If enabled Then
-		KnockerSolenoid 'Add knocker position object
 	End If
 End Sub
 

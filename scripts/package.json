@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    
     "extract-vpx": "powershell -Command \"$gameName = Get-Content ../gamename.txt | Select-Object -First 1; vpxtool extract ../$gameName.vpx\"",
     "assemble-vpx": "powershell -Command \"$gameName = Get-Content ../gamename.txt | Select-Object -First 1; vpxtool assemble ../$gameName\"",
     "grunt-vpx": "grunt watch:vpx",
