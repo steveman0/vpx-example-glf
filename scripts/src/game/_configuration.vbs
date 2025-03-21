@@ -16,4 +16,6 @@ Sub ConfigureGlfDevices
     End With
 
 
+    CreateBaseMode()
+
 End Sub
